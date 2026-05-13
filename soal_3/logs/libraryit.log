@@ -1,0 +1,67 @@
+[2026/05/13 15:43:06.773477,  0] ../../source3/smbd/server.c:1734(main)
+  smbd version 4.15.13-Ubuntu started.
+  Copyright Andrew Tridgell and the Samba Team 1992-2021
+[2026/05/13 15:43:06.776023,  1] ../../source3/profile/profile_dummy.c:30(set_profile_level)
+  INFO: Profiling support unavailable in this build.
+[2026/05/13 15:43:06.860731,  1] ../../source3/printing/printer_list.c:255(printer_list_get_last_refresh)
+  Failed to fetch record!
+[2026/05/13 15:43:21.852867,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname mkdir, logging all
+[2026/05/13 15:43:21.852953,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname unlink, logging all
+[2026/05/13 15:43:21.855902,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname mkdir, logging all
+[2026/05/13 15:43:21.855963,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname unlink, logging all
+[2026/05/13 15:44:20.166927,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname mkdir, logging all
+[2026/05/13 15:44:20.167011,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname unlink, logging all
+[2026/05/13 15:44:20.170514,  1] ../../source3/printing/printer_list.c:255(printer_list_get_last_refresh)
+  Failed to fetch record!
+[2026/05/13 15:44:20.170601,  1] ../../source3/smbd/server_reload.c:67(delete_and_reload_printers)
+  pcap cache not loaded
+[2026/05/13 15:44:47.742852,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname mkdir, logging all
+[2026/05/13 15:44:47.742933,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname unlink, logging all
+[2026/05/13 15:44:47.745451,  1] ../../source3/smbd/service.c:364(create_connection_session_info)
+  create_connection_session_info: user 'member' (from session setup) not permitted to access this share (sourcecode)
+[2026/05/13 15:44:47.745508,  1] ../../source3/smbd/service.c:545(make_connection_snum)
+  create_connection_session_info failed: NT_STATUS_ACCESS_DENIED
+[2026/05/13 15:44:56.670581,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname mkdir, logging all
+[2026/05/13 15:44:56.670663,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname unlink, logging all
+[2026/05/13 15:44:56.673366,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname mkdir, logging all
+[2026/05/13 15:44:56.673428,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname unlink, logging all
+[2026/05/13 15:45:37.441953,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname mkdir, logging all
+[2026/05/13 15:45:37.442036,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname unlink, logging all
+[2026/05/13 15:45:37.445921,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname mkdir, logging all
+[2026/05/13 15:45:37.445984,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname unlink, logging all
+[2026/05/13 15:45:41.002054,  0] ../../source3/smbd/service.c:168(chdir_current_service)
+  chdir_current_service: vfs_ChDir(/libraryit/ebooks) failed: No such file or directory. Current token: uid=1000, gid=1001, 2 groups: 1001 1000
+[2026/05/13 15:45:45.723174,  0] ../../source3/smbd/service.c:168(chdir_current_service)
+  chdir_current_service: vfs_ChDir(/libraryit/ebooks) failed: No such file or directory. Current token: uid=1000, gid=1001, 2 groups: 1001 1000
+[2026/05/13 15:47:01.700325,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname mkdir, logging all
+[2026/05/13 15:47:01.700409,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname unlink, logging all
+[2026/05/13 15:47:01.703540,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname mkdir, logging all
+[2026/05/13 15:47:01.703602,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname unlink, logging all
+[2026/05/13 15:47:32.157492,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname mkdir, logging all
+[2026/05/13 15:47:32.157576,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname unlink, logging all
+[2026/05/13 15:47:32.160079,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname mkdir, logging all
+[2026/05/13 15:47:32.160140,  0] ../../source3/modules/vfs_full_audit.c:562(init_bitmap)
+  Could not find opname unlink, logging all
