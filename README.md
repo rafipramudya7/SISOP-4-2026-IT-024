@@ -293,3 +293,303 @@ int ret = fuse_main(fuse_argc, fuse_argv, &kenz_ops, NULL);
 `fuse_main()` adalah entry point library FUSE yang mengurus daemonisasi, mounting, dan event loop. Program tidak akan kembali dari sini sampai filesystem di-unmount.
 
 ---
+`
+
+# Penjelasan Kode: LibraryIT Server
+
+ menjelaskan struktur dan logika internal dari setiap file dalam project LibraryIT Server secara mendetail.
+
+---
+
+## Gambaran Umum
+
+Project ini terdiri dari 4 file yang bekerja bersama:
+
+```
+Dockerfile          → membangun image Docker berisi Samba
+smb.conf            → konfigurasi share dan hak akses Samba
+entrypoint.sh       → setup user/folder/permission saat container start
+docker-compose.yml  → orkestrasi container server + logger
+```
+
+---
+
+## `Dockerfile`
+
+```dockerfile
+FROM ubuntu:22.04
+ENV DEBIAN_FRONTEND=noninteractive
+```
+
+Basis image nya Ubuntu 22.04. `DEBIAN_FRONTEND=noninteractive` mencegah `apt` menampilkan prompt interaktif saat proses build  wajib diset agar build tidak hang menunggu input.
+
+```dockerfile
+RUN apt update && apt install -y \
+    samba \
+    samba-common-bin \
+    acl \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+Menginstall 3 paket:
+
+- `samba` — daemon server SMB/CIFS utama (`smbd`)
+- `samba-common-bin` — tools pendukung termasuk `smbpasswd` untuk mengelola password Samba
+- `acl` — tools untuk Access Control List di filesystem
+
+Cache apt (`/var/lib/apt/lists/*`) dihapus di akhir **dalam satu `RUN` yang sama** agar tidak membuat layer Docker tambahan yang membengkakkan ukuran image.
+
+```dockerfile
+COPY smb.conf /etc/samba/smb.conf
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+EXPOSE 139 445
+CMD ["/entrypoint.sh"]
+```
+
+- `smb.conf` disalin ke lokasi default yang dibaca Samba secara otomatis
+- `entrypoint.sh` diberi izin eksekusi lewat `chmod +x`
+- Port `445` (SMB modern) dan `139` (NetBIOS legacy) dideklarasikan
+- `CMD` menentukan perintah yang dijalankan saat container pertama start
+
+---
+
+## `entrypoint.sh`
+
+Script ini dieksekusi setiap kali container start. Tugasnya menyiapkan semua infrastruktur sebelum Samba berjalan.
+
+### `set -e`
+
+```bash
+set -e
+```
+
+Menyebabkan script **langsung berhenti** jika ada perintah yang gagal (exit code non-zero). Ini mencegah Samba berjalan dalam kondisi setengah jadi jika salah satu langkah setup gagal.
+
+### Membuat Direktori
+
+```bash
+mkdir -p /libraryit/ebooks
+mkdir -p /libraryit/papers
+mkdir -p /libraryit/sourcecode
+mkdir -p /libraryit/docs
+mkdir -p /logs
+touch /logs/libraryit.log
+```
+
+Membuat 4 folder konten dan file log. Flag `-p` memastikan tidak error jika folder sudah ada. `touch` membuat file log kosong agar `tail -f` di container logger tidak langsung error.
+
+### Membuat Group
+
+```bash
+groupadd -f readonly
+groupadd -f staff
+```
+
+Dua group sebagai hak akses. Flag `-f` (force) mencegah error jika group sudah ada. Group ini direferensikan di `smb.conf` dengan prefix `@` 
+
+### Membuat User Linux
+
+```bash
+id member >/dev/null 2>&1 || useradd -m member
+id contributor >/dev/null 2>&1 || useradd -m contributor
+id librarian >/dev/null 2>&1 || useradd -m librarian
+```
+
+
+
+### Set Password Linux & Samba
+
+```bash
+echo "member:member123" | chpasswd
+(echo member123; echo member123) | smbpasswd -s -a member
+```
+
+Setiap user mendapat **dua password yang diset terpisah** karena Samba menyimpan credential di database sendiri (`/var/lib/samba/private/passdb.tdb`), terpisah dari `/etc/shadow` milik Linux.
+
+- `chpasswd` — set password Linux, menerima format `user:password` via stdin
+- `smbpasswd -s -a` — set password Samba; `-s` = silent/non-interaktif (baca dari stdin), `-a` = tambah user baru ke database Samba
+- Dua `echo` di dalam subshell `(...)` mensimulasikan input "masukkan password" dan "konfirmasi password" yang diminta `smbpasswd`
+
+### Assign User ke Group
+
+```bash
+usermod -aG readonly member
+usermod -aG staff contributor
+usermod -aG staff librarian
+```
+
+Menentukan hak akses tiap user. Flag `-aG` berarti "append to Group" — menambahkan ke group tanpa menghapus keanggotaan group lain yang sudah ada.
+
+
+### Set Permission Folder
+
+```bash
+chmod -R 770 /libraryit/ebooks    
+chmod -R 770 /libraryit/papers
+chmod -R 750 /libraryit/sourcecode   
+chmod -R 755 /libraryit/docs         
+```
+
+Permission filesystem ini menjadi lapisan keamanan kedua di bawah Samba. Meski seseorang berhasil masuk ke container, mereka tetap dibatasi oleh permission Unix ini.
+
+### Menjalankan Samba
+
+```bash
+exec smbd --foreground --no-process-group
+```
+
+`exec` menggantikan proses shell (`bash`) dengan `smbd` sehingga `smbd` menjadi **PID 1** di container. Ini penting karena Docker mengirim sinyal (SIGTERM saat `docker stop`) ke PID 1. Jika `exec` tidak dipakai, sinyal dikirim ke `bash`, bukan ke `smbd`, dan Samba tidak bisa shutdown dengan bersih.
+
+- `--foreground` — mencegah `smbd` melakukan daemonisasi (fork ke background), karena Docker memantau proses foreground
+- `--no-process-group` — mencegah `smbd` membuat process group baru, agar sinyal dari Docker langsung diterima
+
+---
+
+## `smb.conf`
+
+File konfigurasi utama Samba, dibagi menjadi blok `[global]` dan blok-blok share.
+
+### Blok `[global]`
+
+```ini
+security = user
+map to guest = never
+```
+
+`security = user` mengharuskan autentikasi username+password sebelum akses diberikan. `map to guest = never` memblokir total akses anonim — koneksi tanpa kredensial valid langsung ditolak.
+
+```ini
+log file = /logs/libraryit.log
+max log size = 1000
+logging = file
+log level = 1
+```
+
+Log ditulis ke file yang sama dengan yang di-mount ke container logger. `max log size = 1000` membatasi ukuran log maksimum 1000 KB sebelum di-rotate. `log level = 1` adalah level minimal 
+
+```ini
+vfs objects = full_audit
+
+full_audit:prefix = [%T] [%I] [%u]
+full_audit:success = connect disconnect mkdir rmdir open write rename unlink
+full_audit:failure = connect open write unlink rename
+full_audit:facility = LOCAL7
+full_audit:priority = NOTICE
+```
+
+`vfs objects = full_audit` mengaktifkan modul audit bawaan Samba. Modul ini mencegat setiap operasi file dan mencatatnya ke log.
+
+- `prefix` menentukan format awal setiap baris log: `%T` = timestamp, `%I` = IP client, `%u` = username
+- `success` — daftar operasi yang dicatat jika **berhasil**
+- `failure` — daftar operasi yang dicatat jika **gagal** (subset dari success, fokus pada operasi sensitif)
+
+
+### Blok Share
+
+Setiap blok `[nama]` mendefinisikan satu folder yang bisa diakses via jaringan.
+
+```ini
+[ebooks]
+   path = /libraryit/ebooks
+   browseable = yes
+   read only = no
+   valid users = @staff @readonly
+   write list = @staff
+```
+
+- `path` — lokasi folder di filesystem container
+- `browseable = yes` — folder ini muncul saat client browse jaringan (`\\server\`)
+- `read only = no` — izinkan akses tulis  
+- `valid users` — hanya user dalam group `@staff` atau `@readonly` yang boleh masuk; `@` berarti group
+- `write list` — dari yang sudah masuk, hanya `@staff` yang boleh menulis
+
+```ini
+[sourcecode]
+   browseable = no
+   valid users = @staff
+```
+
+`browseable = no` menyembunyikan share ini dari listing jaringan. User harus tahu nama share-nya untuk bisa mengakses. Hanya `@staff` yang boleh masuk `@readonly`.
+
+```ini
+[docs]
+   read only = yes
+   valid users = @staff @readonly
+   write list = librarian
+```
+
+`read only = yes` membuat share ini read-only secara default untuk semua user. `write list = librarian` mengecualikan user `librarian` secara spesifik — user ini bisa menulis meski `read only = yes`. Perhatikan: `librarian` (tanpa `@`) berarti user individual, bukan group.
+
+---
+
+## `docker-compose.yml`
+
+### Service `libraryit-server`
+
+```yaml
+build: .
+ports:
+  - "1445:445"
+  - "1139:139"
+```
+
+`build: .` berarti Docker Compose akan membangun image dari `Dockerfile` di direktori yang sama. Port dipetakan ke `1445`/`1139` di host (bukan standar `445`/`139`) untuk menghindari konflik jika host sudah menjalankan Samba atau Windows file sharing.
+
+```yaml
+volumes:
+  - ./data:/libraryit
+  - ./logs:/logs
+```
+
+Dua bind mount yang membuat data **persisten di host**. Ketika container dihapus lalu dibuat ulang, semua file di `./data` dan log di `./logs` tetap ada. Pola `./host_path:/container_path` adalah bind mount.
+
+```yaml
+restart: unless-stopped
+```
+
+Container otomatis restart jika crash atau saat Docker daemon restart.
+
+### Service `libraryit-logger`
+
+```yaml
+image: alpine:latest
+command: sh -c "tail -f /logs/libraryit.log"
+volumes:
+  - ./logs:/logs
+```
+
+Container kedua yang hanya menjalankan `tail -f` untuk membaca log secara real-time.
+
+```yaml
+depends_on:
+  - libraryit-server
+```
+
+Memastikan `libraryit-server` sudah start terlebih dahulu sebelum `libraryit-logger` dijalankan, sehingga file log sudah ada saat `tail -f` dimulai.
+
+---
+
+## Ringkasan Alur
+
+```
+docker compose up
+       │
+       ├─► libraryit-server
+       │       │
+       │       ├─ Dockerfile     → install Samba di atas Ubuntu 22.04
+       │       ├─ smb.conf       → definisi share & aturan akses
+       │       └─ entrypoint.sh
+       │               ├─ buat /libraryit/{ebooks,papers,sourcecode,docs}
+       │               ├─ buat group: readonly, staff
+       │               ├─ buat user: member, contributor, librarian
+       │               ├─ set password Linux (chpasswd) & Samba (smbpasswd)
+       │               ├─ assign group: member→readonly, contributor/librarian→staff
+       │               ├─ set chmod tiap folder
+       │               └─ exec smbd (PID 1)
+       │
+       └─► libraryit-logger
+               └─ tail -f ./logs/libraryit.log
+                       ↑
+               setiap akses SMB dari client dicatat di sini oleh full_audit
+```
